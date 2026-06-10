@@ -65,7 +65,9 @@ does not specify one.
 
 EXAMPLES
 - generate_image(prompt="watercolor fox in a misty forest")
-- generate_image(prompt="birthday card that says 'Bravo Marie!'", model="pro")
+- generate_image(prompt="birthday card that says 'Bravo Marie!'")  # text in the
+    image is NOT a reason to pass model; the default handles it. Only set model
+    if the user named one ("use pro").
 - generate_image(prompt="same scene at sunset", reference_images=["<uuid>.png"])
 - generate_image(prompt="mountain panorama", aspect_ratio="21:9", image_size="2K")
 """

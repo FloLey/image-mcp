@@ -30,7 +30,7 @@ import httpx
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 
-from image_mcp import metadata, models, prefs, storage
+from image_mcp import metadata, models, prefs, spend, storage
 from image_mcp.access import is_allowed_email
 
 SESSION_COOKIE = "img_ui_session"
@@ -372,18 +372,36 @@ def register_ui(
         email = current_email(request)
         if not email:
             return RedirectResponse("/ui/login")
-        metas = metadata.load_all_meta(storage.images_root())
+        root = storage.images_root()
+        metas = metadata.load_all_meta(root)
         per_user = metadata.summarize_by_user(metas)
         admin = is_admin(email)
         if not admin:
             per_user = [(e, s) for e, s in per_user if e == email]
 
-        total_count = sum(s["count"] for _, s in per_user)
-        total_cost = sum(s["cost"] for _, s in per_user)
+        # Cost comes from the cumulative ledger (money already spent), never
+        # from the live images: deleting an image must not lower the total.
+        # The image count still reflects what currently exists.
+        spend_totals = spend.totals(root)
+        counts = {e: s["count"] for e, s in per_user}
+        if admin:
+            row_emails = sorted(
+                set(spend_totals) | set(counts),
+                key=lambda e: spend_totals.get(e, 0.0),
+                reverse=True,
+            )
+        else:
+            row_emails = [email]
+
+        def cost_of(e: str) -> float:
+            return spend_totals.get(e, 0.0)
+
+        total_count = sum(counts.get(e, 0) for e in row_emails)
+        total_cost = sum(cost_of(e) for e in row_emails)
         summary_rows = "".join(
-            f"<tr><td>{html.escape(e)}</td><td>{s['count']}</td>"
-            f"<td>${s['cost']:.3f}</td></tr>"
-            for e, s in per_user
+            f"<tr><td>{html.escape(e)}</td><td>{counts.get(e, 0)}</td>"
+            f"<td>${cost_of(e):.3f}</td></tr>"
+            for e in row_emails
         )
         scope_note = "" if admin else " (your generations only)"
         prices = " · ".join(
@@ -400,13 +418,14 @@ def register_ui(
             f"<tbody>{summary_rows}"
             f"<tr><th>Total</th><th>{total_count}</th><th>${total_cost:.3f}</th></tr>"
             "</tbody></table>"
-            "<p class='muted'>Estimated from the list price per generated image: "
-            f"{html.escape(prices)}.</p>"
+            "<p class='muted'>Cumulative spend, estimated from the list price per "
+            f"generated image: {html.escape(prices)}. Deleting an image does not "
+            "lower it — the generation was already paid for.</p>"
             "</section>"
         )
 
         # Per-user default model picker (each user sets their own).
-        current = prefs.get_default_model(storage.images_root(), email) or models.DEFAULT_ALIAS
+        current = prefs.get_default_model(root, email) or models.DEFAULT_ALIAS
         options = "".join(
             f"<option value='{alias}'{' selected' if alias == current else ''}>"
             f"{html.escape(spec['label'])} (${models.cost_for(alias):.3f}/image in 1K)</option>"
@@ -414,8 +433,11 @@ def register_ui(
         )
         prefs_card = (
             "<section class='card'><h2>My default model</h2>"
-            "<p class='muted'>Used when a generation does not specify a model. "
-            "You can always override it per request by asking Claude for flash or pro.</p>"
+            "<p class='muted'>Used for every generation unless you tell Claude "
+            "otherwise. Pro gives higher quality (legible text, complex scenes) "
+            "but costs more; flash is fast and cheap. To use the other one for a "
+            "single image, just ask Claude (\"use pro\") — Claude won't switch on "
+            "its own.</p>"
             "<form method='post' action='/ui/prefs' style='border:0;box-shadow:none;padding:0'>"
             f"<input type='hidden' name='csrf' value='{csrf_token(email)}'>"
             f"<div class='field'><select name='model'>{options}</select></div>"
@@ -431,8 +453,8 @@ def register_ui(
                 if storage.is_safe_image_name(str(m.get("name", "")))
             )
             galleries += (
-                f"<section class='card'><h2>{html.escape(e)} · {s['count']} image(s) · "
-                f"${s['cost']:.3f}</h2><div class='gallery'>{figures}</div></section>"
+                f"<section class='card'><h2>{html.escape(e)} · {s['count']} image(s)</h2>"
+                f"<div class='gallery'>{figures}</div></section>"
             )
         if not per_user:
             galleries = "<div class='empty'>No images generated yet.</div>"

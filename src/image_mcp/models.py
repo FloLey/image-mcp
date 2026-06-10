@@ -19,12 +19,17 @@ ALLOWED_SIZES = ("1K", "2K", "4K")
 MODELS = {
     "flash": {
         "id": "gemini-3.1-flash-image-preview",
-        "label": "Nano Banana 2 (flash): fast and cheap",
+        "label": "Nano Banana 2 (flash): fast, low cost",
         "costs": {"1K": 0.067, "2K": 0.101, "4K": 0.151},
     },
     "pro": {
         "id": "gemini-3-pro-image-preview",
-        "label": "Nano Banana Pro: best quality",
+        # Deliberately neutral: this label is also shown to Claude in the help
+        # text, so it must not advertise pro as "best" — that nudges the model
+        # into picking it for "high quality" prompts the user never asked to
+        # upgrade. Price is the only differentiator Claude sees; the human gets
+        # the quality note in the dashboard's model picker instead.
+        "label": "Nano Banana Pro: higher cost",
         "costs": {"1K": 0.134, "2K": 0.134, "4K": 0.24},
     },
 }
