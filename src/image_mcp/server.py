@@ -40,8 +40,8 @@ from image_mcp import generate, metadata, models, prefs, storage, usage
 from image_mcp.access import is_allowed_email, parse_allowed_emails
 from image_mcp.ui import register_ui
 
-DEFAULT_PUBLIC_URL = "https://images.florent-lejoly.be"
-DEFAULT_ADMIN_EMAILS = "florent.lejoly@gmail.com"
+DEFAULT_PUBLIC_URL = "http://localhost:8766"
+DEFAULT_ADMIN_EMAILS = ""
 
 
 def _build_auth():
