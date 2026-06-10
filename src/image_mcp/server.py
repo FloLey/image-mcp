@@ -26,6 +26,7 @@ Claude.ai must be able to fetch the URL to show it to the user).
 
 from __future__ import annotations
 
+import html
 import os
 
 from fastmcp import FastMCP
@@ -371,21 +372,55 @@ async def view_image(request: Request) -> Response:
     name = request.path_params["name"]
     if not storage.is_safe_image_name(name) or storage.load_image(name, storage.images_root()) is None:
         return JSONResponse({"error": "not found"}, status_code=404)
+    meta = metadata.load_meta(storage.images_root(), name) or {}
+    alias = str(meta.get("model_alias") or "")
+    model = str(meta.get("model") or "")
+    model_label = f"{alias} ({model})" if alias and model else (alias or model or "")
+    try:
+        price = f"${float(meta.get('cost') or 0):.3f}" if meta.get("cost") is not None else ""
+    except (TypeError, ValueError):
+        price = ""
+
+    def info_row(label: str, value: str) -> str:
+        if not value:
+            return ""
+        return (
+            f"<div class='row'><span class='k'>{html.escape(label)}</span>"
+            f"<span class='v'>{html.escape(value)}</span></div>"
+        )
+
+    info_rows = (
+        info_row("Prompt", str(meta.get("prompt") or ""))
+        + info_row("Model", model_label)
+        + info_row("Size", str(meta.get("image_size") or ""))
+        + info_row("Aspect", str(meta.get("aspect_ratio") or ""))
+        + info_row("Price", price)
+        + info_row("Created", str(meta.get("created") or "").replace("T", " ").rstrip("Z")[:19])
+        + info_row("Title", name)
+    )
+    info_block = f"<div class='info'>{info_rows}</div>" if info_rows else ""
     html_doc = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Image Studio</title>
 <style>
 body {{ margin: 0; min-height: 100vh; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 1.2rem; background: #16171a;
+  align-items: center; justify-content: center; gap: 1.2rem; background: #16171a; color: #e8e8ea;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 1rem; box-sizing: border-box; }}
-img {{ max-width: min(95vw, 1024px); max-height: 80vh; border-radius: 12px;
+img {{ max-width: min(95vw, 1024px); max-height: 70vh; border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0,0,0,.5); }}
 a.btn {{ display: inline-block; padding: .7rem 1.4rem; border-radius: 10px;
   background: #6ea8e0; color: #10131a; text-decoration: none; font-weight: 600; }}
+.info {{ width: min(95vw, 640px); background: #1f2126; border: 1px solid #2c2f36;
+  border-radius: 12px; padding: .9rem 1.1rem; font-size: .85rem; line-height: 1.5; }}
+.info .row {{ display: flex; gap: .8rem; padding: .15rem 0; }}
+.info .k {{ flex: 0 0 5rem; color: #9a9aa2; text-transform: uppercase;
+  letter-spacing: .04em; font-size: .7rem; padding-top: .1rem; }}
+.info .v {{ flex: 1; word-break: break-word; overflow-wrap: anywhere; }}
 </style></head><body>
 <img src="/i/{name}" alt="Generated image">
 <a class="btn" href="/d/{name}">Download PNG</a>
+{info_block}
 </body></html>"""
     return HTMLResponse(html_doc)
 
