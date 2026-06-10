@@ -146,6 +146,16 @@ th { background: color-mix(in srgb, var(--ink) 5%, transparent); }
   letter-spacing: .04em; font-size: .66rem; padding-top: .05rem; }
 .meta-v { flex: 1; color: var(--ink); word-break: break-word;
   overflow-wrap: anywhere; }
+/* Prompts can be very long; clamp to two lines and let the user expand the
+   one they care about, so a card stays compact instead of a wall of text. */
+.prompt { flex: 1; min-width: 0; }
+.prompt summary { display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden; cursor: pointer;
+  color: var(--ink); word-break: break-word; overflow-wrap: anywhere;
+  list-style: none; }
+.prompt summary::-webkit-details-marker { display: none; }
+.prompt summary:hover { color: var(--accent); }
+.prompt[open] summary { -webkit-line-clamp: unset; display: block; }
 .actions { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
 .actions form { margin: 0; }
 .chip {
@@ -201,6 +211,18 @@ def _figure(m: dict, csrf: str) -> str:
             f"<span class='meta-v'>{html.escape(value)}</span></div>"
         )
 
+    def prompt_row(value: str) -> str:
+        if not value:
+            return ""
+        # <details>: the prompt shows clamped (CSS) and expands on click, with
+        # the full text also in the tooltip. Keeps tall prompts from blowing up
+        # the card while staying readable without leaving the gallery.
+        return (
+            "<div class='meta-row'><span class='meta-k'>Prompt</span>"
+            f"<details class='prompt'><summary title='{html.escape(value)}'>"
+            f"{html.escape(value)}</summary></details></div>"
+        )
+
     model_label = alias
     if alias and model_id:
         model_label = f"{alias} ({model_id})"
@@ -208,7 +230,7 @@ def _figure(m: dict, csrf: str) -> str:
         model_label = model_id
 
     meta_rows = (
-        row("Prompt", prompt)
+        prompt_row(prompt)
         + row("Model", model_label)
         + row("Size", size)
         + row("Aspect", ratio)
