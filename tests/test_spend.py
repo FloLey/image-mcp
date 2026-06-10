@@ -44,8 +44,10 @@ def test_junk_values_and_blank_emails_are_ignored(tmp_path):
     assert spend.totals(tmp_path) == {"a@x.com": 0.0}
 
 
-def test_corrupt_file_is_tolerated(tmp_path):
+def test_corrupt_file_is_tolerated_and_preserved(tmp_path):
     (tmp_path / "spend.json").write_text("{broken")
     assert spend.totals(tmp_path) == {}
+    # The corrupt content is set aside for manual recovery, not destroyed.
+    assert (tmp_path / "spend.corrupt").read_text() == "{broken"
     spend.record(tmp_path, "a@x.com", 0.2)
     assert spend.totals(tmp_path)["a@x.com"] == 0.2
