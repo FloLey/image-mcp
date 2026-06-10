@@ -366,13 +366,18 @@ async def download_image(request: Request) -> Response:
 @mcp.custom_route("/v/{name}", methods=["GET"])
 async def view_image(request: Request) -> Response:
     """A minimal share page for one image: the picture plus a working
-    download button. Served from the same origin as the PNG, so it works
-    everywhere a plain link works (mobile included), unlike inline tool
-    images or sandboxed artifacts."""
+    download button and the generation details. Served from the same origin
+    as the PNG, so it works everywhere a plain link works (mobile included),
+    unlike inline tool images or sandboxed artifacts.
+
+    ``?plain=1`` hides the details (and the share link itself): the page the
+    user forwards when they want to share the image without exposing the
+    prompt, price, and the rest of the metadata."""
     name = request.path_params["name"]
     if not storage.is_safe_image_name(name) or storage.load_image(name, storage.images_root()) is None:
         return JSONResponse({"error": "not found"}, status_code=404)
-    meta = metadata.load_meta(storage.images_root(), name) or {}
+    plain = request.query_params.get("plain") == "1"
+    meta = {} if plain else (metadata.load_meta(storage.images_root(), name) or {})
     alias = str(meta.get("model_alias") or "")
     model = str(meta.get("model") or "")
     model_label = f"{alias} ({model})" if alias and model else (alias or model or "")
@@ -399,6 +404,9 @@ async def view_image(request: Request) -> Response:
         + info_row("Title", name)
     )
     info_block = f"<div class='info'>{info_rows}</div>" if info_rows else ""
+    share_block = "" if plain else (
+        f"<a class='share' href='/v/{name}?plain=1'>Share without details</a>"
+    )
     html_doc = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
@@ -417,10 +425,12 @@ a.btn {{ display: inline-block; padding: .7rem 1.4rem; border-radius: 10px;
 .info .k {{ flex: 0 0 5rem; color: #9a9aa2; text-transform: uppercase;
   letter-spacing: .04em; font-size: .7rem; padding-top: .1rem; }}
 .info .v {{ flex: 1; word-break: break-word; overflow-wrap: anywhere; }}
+a.share {{ color: #9a9aa2; font-size: .8rem; }}
 </style></head><body>
 <img src="/i/{name}" alt="Generated image">
 <a class="btn" href="/d/{name}">Download PNG</a>
 {info_block}
+{share_block}
 </body></html>"""
     return HTMLResponse(html_doc)
 
