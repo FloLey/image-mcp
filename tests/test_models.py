@@ -5,11 +5,23 @@ from image_mcp.models import (
     DEFAULT_ALIAS,
     DEFAULT_SIZE,
     MODELS,
+    choose_alias,
     cost_for,
     model_id,
     resolve_alias,
     resolve_size,
 )
+
+
+def test_choose_alias_dashboard_pref_always_wins():
+    assert choose_alias(requested="flash", pref="pro") == "pro"
+    assert choose_alias(requested="pro", pref="flash") == "flash"
+    assert choose_alias(requested=None, pref="pro") == "pro"
+
+
+def test_choose_alias_without_pref():
+    assert choose_alias(requested="pro", pref=None) == "pro"
+    assert choose_alias(requested=None, pref=None) == DEFAULT_ALIAS
 
 
 def test_registry_shape():

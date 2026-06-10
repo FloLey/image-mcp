@@ -14,9 +14,10 @@ list prices per generated image):
 | `pro` | `gemini-3-pro-image-preview` (Nano Banana Pro) | $0.134 | $0.134 | $0.24 | final renders, text in image, complex compositions |
 
 The tool's `model` parameter accepts the alias, the full id, or the doc-page
-name (`gemini-3.1-flash-image` / `gemini-3-pro-image`). When unset, the
-caller's **per-user default** applies (set in the `/ui` dashboard), falling
-back to `flash`. `image_size` is `1K` (default), `2K`, or `4K`. Ids and
+name (`gemini-3.1-flash-image` / `gemini-3-pro-image`). The **per-user
+default** chosen in the `/ui` dashboard always takes precedence; the
+parameter only applies for callers without a dashboard default, falling back
+to `flash`. `image_size` is `1K` (default), `2K`, or `4K`. Ids and
 prices are env-overridable (`IMG_MODEL_FLASH`, `IMG_MODEL_PRO`,
 `IMG_COST_{FLASH|PRO}_{1K|2K|4K}`) so a model rename or price change needs no
 code change.

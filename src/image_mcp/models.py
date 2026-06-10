@@ -56,6 +56,12 @@ def resolve_size(value: str | None) -> str:
     return size
 
 
+def choose_alias(requested: str | None, pref: str | None) -> str:
+    """Which model to use: the user's dashboard preference always wins; an
+    explicit request only applies for users without one; else the default."""
+    return pref or requested or DEFAULT_ALIAS
+
+
 def resolve_alias(value: str | None) -> str | None:
     """Map a caller-supplied model name to an alias, or ``None`` for "no
     preference". Accepts the alias, the full model id (including an env

@@ -31,11 +31,11 @@ PARAMETERS
 - model (optional): which engine to use.
 {model_lines}
   Accepts the alias, the full model id, or the doc-page name
-  (gemini-3.1-flash-image / gemini-3-pro-image). When unset, the caller's
-  per-user default applies (set on the dashboard, {base}/ui), falling back
-  to "{DEFAULT_ALIAS}". Rule of thumb: flash for drafts, iterations and simple
-  scenes; pro for final renders, legible text in the image, or complex
-  compositions.
+  (gemini-3.1-flash-image / gemini-3-pro-image). The default model chosen on
+  the dashboard ({base}/ui) always takes precedence; this parameter only
+  applies for callers without a dashboard default, falling back to
+  "{DEFAULT_ALIAS}". Rule of thumb then: flash for drafts and simple scenes; pro
+  for final renders, legible text in the image, or complex compositions.
 - image_size (optional, default "{DEFAULT_SIZE}"): output resolution, one of {sizes}.
   Larger sizes cost more (see prices above); stay on {DEFAULT_SIZE} unless a large or
   print-quality result is wanted.

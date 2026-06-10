@@ -175,11 +175,11 @@ def generate_image(
     (nano banana). Returns an inline preview plus the URL of the full-size PNG;
     always give the user that URL.
 
-    ``model`` picks the engine by use case: ``"flash"`` (Nano Banana 2,
-    fast and cheap) for drafts, iterations and simple scenes; ``"pro"``
-    (Nano Banana Pro) for final renders, legible text in the image, or
-    complex compositions. Leave it unset to use the caller's default
-    (configurable in the web dashboard, otherwise flash).
+    ``model``: the model chosen in the caller's web dashboard always takes
+    precedence; this parameter only applies for callers without a dashboard
+    default. In that case: ``"flash"`` (Nano Banana 2, fast and cheap) for
+    drafts and simple scenes, ``"pro"`` (Nano Banana Pro) for final renders,
+    legible text in the image, or complex compositions.
 
     ``image_size`` is the output resolution: ``"1K"`` (default), ``"2K"``, or
     ``"4K"``. Price per image rises with size (flash $0.067/$0.101/$0.151,
@@ -195,12 +195,12 @@ def generate_image(
     email = _caller_email()
 
     try:
-        alias = models.resolve_alias(model)
+        requested = models.resolve_alias(model)
         size = models.resolve_size(image_size)
     except ValueError as exc:
         raise ToolError(str(exc)) from exc
-    if alias is None:
-        alias = prefs.get_default_model(root, email) or models.DEFAULT_ALIAS
+    pref = prefs.get_default_model(root, email)
+    alias = models.choose_alias(requested, pref)
     chosen_model_id = models.model_id(alias)
 
     refs: list[bytes] = []
@@ -241,13 +241,19 @@ def generate_image(
     )
     preview = generate.make_preview(image_data)
     base = os.environ.get("IMG_PUBLIC_URL", DEFAULT_PUBLIC_URL).rstrip("/")
+    overridden = (
+        f" Note: the user's dashboard default ({alias}) takes precedence over "
+        f"the requested model ({requested}); it can be changed at {base}/ui."
+        if requested and pref and requested != pref
+        else ""
+    )
     # One link only: the share page (image + download button). Giving the raw
     # PNG URL as well made models hand the user the button-less one.
     return [
         MCPImage(data=preview, format="jpeg"),
         f"Image ready (model: {alias}, size: {size}). "
         f"Give the user this link to view and download it: {base}/v/{name} "
-        f"(filename {name}, reusable as a reference_images entry).",
+        f"(filename {name}, reusable as a reference_images entry).{overridden}",
     ]
 
 
