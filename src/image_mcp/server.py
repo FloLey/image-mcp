@@ -34,7 +34,7 @@ from fastmcp.server.dependencies import get_access_token
 from fastmcp.server.middleware import Middleware
 from fastmcp.utilities.types import Image as MCPImage
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, Response
 
 from image_mcp import generate, metadata, models, prefs, storage, usage
 from image_mcp.access import is_allowed_email, parse_allowed_emails
@@ -240,10 +240,13 @@ def generate_image(
         image_size=size,
     )
     preview = generate.make_preview(image_data)
+    base = os.environ.get("IMG_PUBLIC_URL", DEFAULT_PUBLIC_URL).rstrip("/")
     return [
         MCPImage(data=preview, format="jpeg"),
-        f"Full-size image: {_public_url(name)} (filename {name}, "
-        f"reusable as a reference_images entry; model: {alias}, size: {size}).",
+        f"Image ready (model: {alias}, size: {size}). "
+        f"View and download it here: {base}/v/{name} "
+        f"(direct PNG: {base}/i/{name}; filename {name}, "
+        "reusable as a reference_images entry). Always give the user the link.",
     ]
 
 
@@ -268,8 +271,41 @@ async def serve_image(request: Request) -> Response:
     return Response(
         content=data,
         media_type="image/png",
-        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+        headers={
+            "Cache-Control": "private, max-age=31536000, immutable",
+            # The image is already public-by-link; CORS lets other pages
+            # (e.g. a friend's site) embed or fetch it without a proxy.
+            "Access-Control-Allow-Origin": "*",
+        },
     )
+
+
+@mcp.custom_route("/v/{name}", methods=["GET"])
+async def view_image(request: Request) -> Response:
+    """A minimal share page for one image: the picture plus a working
+    download button. Served from the same origin as the PNG, so it works
+    everywhere a plain link works (mobile included), unlike inline tool
+    images or sandboxed artifacts."""
+    name = request.path_params["name"]
+    if not storage.is_safe_image_name(name) or storage.load_image(name, storage.images_root()) is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    html_doc = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Image Studio</title>
+<style>
+body {{ margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1.2rem; background: #16171a;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 1rem; box-sizing: border-box; }}
+img {{ max-width: min(95vw, 1024px); max-height: 80vh; border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5); }}
+a.btn {{ display: inline-block; padding: .7rem 1.4rem; border-radius: 10px;
+  background: #6ea8e0; color: #10131a; text-decoration: none; font-weight: 600; }}
+</style></head><body>
+<img src="/i/{name}" alt="Generated image">
+<a class="btn" href="/i/{name}" download="{name}">Download PNG</a>
+</body></html>"""
+    return HTMLResponse(html_doc)
 
 
 @mcp.custom_route("/health", methods=["GET"])

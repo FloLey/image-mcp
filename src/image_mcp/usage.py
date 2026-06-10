@@ -45,9 +45,12 @@ PARAMETERS
   night", "combine these two characters"). Up to a few images.
 
 RESULT
-Each call returns a small inline preview plus the URL of the full-size PNG
-({base}/i/<uuid>.png): always share that URL with the user. The filename in
-the URL can be passed back as a reference_images entry.
+Each call returns a small inline preview plus two URLs: a share page with a
+download button ({base}/v/<uuid>.png, best link to give the user, works on
+mobile) and the direct full-size PNG ({base}/i/<uuid>.png). Always share the
+links: some clients do not render the inline preview. The filename can be
+passed back as a reference_images entry. Do not try to fetch or embed the
+image yourself (e.g. in an artifact); just give the links.
 
 DASHBOARD
 {base}/ui (Google login, invitation-only): per-user galleries and estimated
