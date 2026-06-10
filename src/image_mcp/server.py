@@ -282,7 +282,7 @@ def image_info(image: str) -> str:
     root = storage.images_root()
     meta = metadata.load_meta(root, name)
     if meta is None:
-        if storage.load_image(name, root) is not None:
+        if (root / name).is_file():
             raise ToolError(
                 f"No metadata recorded for {name} (it exists but predates "
                 "metadata tracking)."

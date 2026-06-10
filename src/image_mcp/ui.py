@@ -182,8 +182,8 @@ def _figure(m: dict, csrf: str) -> str:
     """One gallery card: the image plus its full metadata and per-image
     actions (open, download, delete)."""
     name = str(m["name"])
-    prompt = str(m.get("prompt", ""))
-    created = str(m.get("created", "")).replace("T", " ").rstrip("Z")
+    prompt = str(m.get("prompt") or "")
+    created = str(m.get("created") or "").replace("T", " ").rstrip("Z")
     alias = str(m.get("model_alias") or "")
     model_id = str(m.get("model") or "")
     size = str(m.get("image_size") or "")
@@ -454,11 +454,8 @@ def register_ui(
         # Only the owner (or an admin) may delete an image: look up who
         # generated it from its sidecar before touching the file.
         root = storage.images_root()
-        owner = next(
-            (str(m.get("email") or "") for m in metadata.load_all_meta(root)
-             if m.get("name") == name),
-            None,
-        )
+        meta = metadata.load_meta(root, name)
+        owner = str(meta.get("email") or "") if meta else None
         if not is_admin(email) and (owner is None or owner != email):
             return PlainTextResponse("Forbidden.", status_code=403)
         storage.delete_image(name, root)
