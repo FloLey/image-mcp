@@ -37,7 +37,7 @@ from fastmcp.utilities.types import Image as MCPImage
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
 
-from image_mcp import generate, metadata, models, prefs, storage, usage
+from image_mcp import generate, metadata, models, prefs, spend, storage, usage
 from image_mcp.access import is_allowed_email, parse_allowed_emails
 from image_mcp.ui import register_ui
 
@@ -233,6 +233,7 @@ def generate_image(
     except generate.GenerationError as exc:
         raise ToolError(str(exc)) from exc
 
+    cost = models.cost_for(alias, size)
     name = storage.save_image(image_data, root)
     metadata.save_meta(
         root,
@@ -240,11 +241,14 @@ def generate_image(
         email=email,
         prompt=prompt,
         aspect_ratio=aspect_ratio,
-        cost=models.cost_for(alias, size),
+        cost=cost,
         model=chosen_model_id,
         model_alias=alias,
         image_size=size,
     )
+    # Record the spend in the cumulative ledger: this is what the dashboard
+    # totals read, so the cost stays put even after the image is deleted.
+    spend.record(root, email, cost)
     preview = generate.make_preview(image_data)
     base = os.environ.get("IMG_PUBLIC_URL", DEFAULT_PUBLIC_URL).rstrip("/")
     # One link only: the share page (image + download button). Giving the raw
@@ -443,7 +447,12 @@ async def health(_request: Request) -> JSONResponse:
 
 
 def main() -> None:
-    storage.images_root().mkdir(parents=True, exist_ok=True)
+    root = storage.images_root()
+    root.mkdir(parents=True, exist_ok=True)
+    # Carry spend that predates the ledger (sidecars already on disk) into the
+    # cumulative totals, once, before serving. Idempotent across restarts.
+    historical = {e: s["cost"] for e, s in metadata.summarize_by_user(metadata.load_all_meta(root))}
+    spend.seed_missing(root, historical)
     host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8766"))
     # Streamable HTTP transport at /mcp, the URL Claude.ai connects to.

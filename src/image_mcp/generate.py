@@ -64,16 +64,49 @@ def generate_image(
     client = _client()
     # Non-streaming: the tool blocks for the full image anyway, and a single
     # response avoids any chance of the image being split across chunks.
-    response = client.models.generate_content(
-        model=model_id,
-        contents=[types.Content(role="user", parts=parts)],
-        config=config,
-    )
+    try:
+        response = client.models.generate_content(
+            model=model_id,
+            contents=[types.Content(role="user", parts=parts)],
+            config=config,
+        )
+    except Exception as exc:  # noqa: BLE001 - surface the real API error to the user
+        # Anything other than GenerationError otherwise reaches the client as a
+        # masked "Error occurred during tool execution" with no cause. Re-raise
+        # with the actual message (API error, quota, invalid argument, ...).
+        raise GenerationError(f"Image API error: {exc}") from exc
+
     for part in response.parts or []:
         if part.inline_data and part.inline_data.data:
             return part.inline_data.data
 
-    raise GenerationError("The model returned no image. Try rephrasing the prompt.")
+    # No image came back: surface why, when the API tells us (a safety/policy
+    # block on the prompt or the generated image is the common case).
+    raise GenerationError(_no_image_reason(response))
+
+
+def _no_image_reason(response) -> str:
+    """Best-effort human-readable reason for an image-less response: a prompt
+    block reason or a candidate finish reason when present, else a generic
+    rephrase hint."""
+    feedback = getattr(response, "prompt_feedback", None)
+    block = getattr(feedback, "block_reason", None)
+    if block:
+        msg = getattr(feedback, "block_reason_message", None)
+        return (
+            f"The prompt was blocked by the model's safety filter ({block})."
+            + (f" {msg}" if msg else "")
+            + " Try rephrasing or removing sensitive content."
+        )
+    for cand in getattr(response, "candidates", None) or []:
+        reason = getattr(cand, "finish_reason", None)
+        # STOP is the normal completion; anything else with no image is a block.
+        if reason and str(getattr(reason, "name", reason)).upper() not in ("STOP", "FINISH_REASON_UNSPECIFIED"):
+            return (
+                f"The model stopped without producing an image ({getattr(reason, 'name', reason)}), "
+                "usually a safety/policy block. Try rephrasing or removing sensitive content."
+            )
+    return "The model returned no image. Try rephrasing the prompt."
 
 
 def make_preview(data: bytes, max_side: int = 512) -> bytes:
