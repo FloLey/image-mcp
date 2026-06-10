@@ -152,7 +152,7 @@ th { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 .prompt summary { display: -webkit-box; -webkit-line-clamp: 2;
   -webkit-box-orient: vertical; overflow: hidden; cursor: pointer;
   color: var(--ink); word-break: break-word; overflow-wrap: anywhere;
-  list-style: none; }
+  list-style: none; white-space: pre-wrap; }
 .prompt summary::-webkit-details-marker { display: none; }
 .prompt summary:hover { color: var(--accent); }
 .prompt[open] summary { -webkit-line-clamp: unset; display: block; }
