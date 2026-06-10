@@ -161,7 +161,9 @@ def _public_url(name: str) -> str:
     return f"{base}/i/{name}"
 
 
-@mcp.tool
+# output_schema=None: the tool returns content blocks (an inline image plus
+# text), which must not be serialized again as structured JSON output.
+@mcp.tool(output_schema=None)
 def generate_image(
     prompt: str,
     aspect_ratio: str = "1:1",
