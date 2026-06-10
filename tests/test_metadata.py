@@ -1,4 +1,4 @@
-from image_mcp.metadata import load_all_meta, save_meta, summarize_by_user
+from image_mcp.metadata import load_all_meta, load_meta, save_meta, summarize_by_user
 from image_mcp.storage import save_image
 
 
@@ -32,6 +32,18 @@ def test_load_skips_foreign_and_broken_files(tmp_path):
 
 def test_load_missing_dir(tmp_path):
     assert load_all_meta(tmp_path / "nope") == []
+
+
+def test_load_meta_by_name(tmp_path):
+    name = _gen(tmp_path, "a@x.com", "a red cat", cost=0.067)
+    meta = load_meta(tmp_path, name)
+    assert meta is not None
+    assert meta["prompt"] == "a red cat"
+    assert meta["email"] == "a@x.com"
+    # A full URL's trailing segment is the caller's job to strip; the bare
+    # name is what we accept here.
+    assert load_meta(tmp_path, "0" * 32 + ".png") is None
+    assert load_meta(tmp_path, "not-a-name") is None
 
 
 def test_summarize_groups_and_sorts_by_cost(tmp_path):

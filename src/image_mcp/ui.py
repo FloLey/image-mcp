@@ -130,13 +130,33 @@ th { background: color-mix(in srgb, var(--ink) 5%, transparent); }
   display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: .9rem; margin: 0; padding: 0;
 }
-.gallery figure { margin: 0; }
+.gallery figure {
+  margin: 0; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; overflow: hidden; display: flex; flex-direction: column;
+}
 .gallery img {
   width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block;
-  border-radius: 8px; border: 1px solid var(--line); background: var(--bg);
+  border-bottom: 1px solid var(--line); background: var(--bg);
 }
-.gallery figcaption { font-size: .78rem; color: var(--muted); margin-top: .3rem;
-  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.gallery figcaption { font-size: .76rem; color: var(--muted); padding: .55rem .6rem;
+  display: flex; flex-direction: column; gap: .5rem; }
+.meta { display: flex; flex-direction: column; gap: .15rem; }
+.meta-row { display: flex; gap: .4rem; }
+.meta-k { flex: 0 0 3.6rem; color: var(--muted); text-transform: uppercase;
+  letter-spacing: .04em; font-size: .66rem; padding-top: .05rem; }
+.meta-v { flex: 1; color: var(--ink); word-break: break-word;
+  overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+.actions form { margin: 0; }
+.chip {
+  display: inline-block; padding: .3rem .6rem; border-radius: 7px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  text-decoration: none; font-size: .76rem; font-weight: 500; cursor: pointer;
+  font-family: inherit; line-height: 1.2;
+}
+.chip:hover { border-color: var(--accent); }
+.chip.danger { color: #d9534f; border-color: color-mix(in srgb, #d9534f 40%, var(--line)); }
+.chip.danger:hover { background: #d9534f; color: #fff; border-color: #d9534f; }
 .btn {
   display: inline-block; padding: .5rem .9rem; border-radius: 8px; cursor: pointer;
   border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink);
@@ -156,6 +176,62 @@ select {
   .gallery { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 }
 """
+
+
+def _figure(m: dict, csrf: str) -> str:
+    """One gallery card: the image plus its full metadata and per-image
+    actions (open, download, delete)."""
+    name = str(m["name"])
+    prompt = str(m.get("prompt", ""))
+    created = str(m.get("created", "")).replace("T", " ").rstrip("Z")
+    alias = str(m.get("model_alias") or "")
+    model_id = str(m.get("model") or "")
+    size = str(m.get("image_size") or "")
+    ratio = str(m.get("aspect_ratio") or "")
+    try:
+        cost = f"${float(m.get('cost') or 0):.3f}"
+    except (TypeError, ValueError):
+        cost = "-"
+
+    def row(label: str, value: str) -> str:
+        if not value:
+            return ""
+        return (
+            f"<div class='meta-row'><span class='meta-k'>{html.escape(label)}</span>"
+            f"<span class='meta-v'>{html.escape(value)}</span></div>"
+        )
+
+    model_label = alias
+    if alias and model_id:
+        model_label = f"{alias} ({model_id})"
+    elif model_id:
+        model_label = model_id
+
+    meta_rows = (
+        row("Prompt", prompt)
+        + row("Model", model_label)
+        + row("Size", size)
+        + row("Aspect", ratio)
+        + row("Price", cost)
+        + row("Created", created[:19])
+        + row("File", name)
+    )
+    actions = (
+        f"<div class='actions'>"
+        f"<a class='chip' href='/i/{name}' target='_blank' rel='noopener'>Open</a>"
+        f"<a class='chip' href='/d/{name}'>Download</a>"
+        f"<form method='post' action='/ui/delete' "
+        f"onsubmit=\"return confirm('Delete this image? This cannot be undone.')\">"
+        f"<input type='hidden' name='csrf' value='{csrf}'>"
+        f"<input type='hidden' name='name' value='{name}'>"
+        f"<button class='chip danger' type='submit'>Delete</button>"
+        f"</form></div>"
+    )
+    return (
+        f"<figure><a href='/i/{name}' target='_blank' rel='noopener'>"
+        f"<img src='/i/{name}' loading='lazy' alt=''></a>"
+        f"<figcaption><div class='meta'>{meta_rows}</div>{actions}</figcaption></figure>"
+    )
 
 
 def _page(title: str, body: str, *, email: str | None = None) -> HTMLResponse:
@@ -347,18 +423,11 @@ def register_ui(
             "</form></section>"
         )
 
+        token = csrf_token(email)
         galleries = ""
         for e, s in per_user:
             figures = "".join(
-                f"<figure><a href='/i/{m['name']}' target='_blank'>"
-                f"<img src='/i/{m['name']}' loading='lazy' alt=''></a>"
-                f"<figcaption title='{html.escape(str(m.get('prompt', '')))}'>"
-                f"{html.escape(str(m.get('prompt', ''))[:140])}"
-                f"<br><span class='muted'>{html.escape(str(m.get('created', ''))[:16].replace('T', ' '))}"
-                f"{' · ' + html.escape(str(m['model_alias'])) if m.get('model_alias') else ''}"
-                f"{' ' + html.escape(str(m['image_size'])) if m.get('image_size') else ''}"
-                f" · ${float(m.get('cost') or 0):.3f}</span></figcaption></figure>"
-                for m in s["images"]
+                _figure(m, token) for m in s["images"]
                 if storage.is_safe_image_name(str(m.get("name", "")))
             )
             galleries += (
@@ -369,6 +438,31 @@ def register_ui(
             galleries = "<div class='empty'>No images generated yet.</div>"
 
         return _page("Dashboard", summary + prefs_card + galleries, email=email)
+
+    @mcp.custom_route("/ui/delete", methods=["POST"])
+    async def ui_delete(request: Request) -> Response:
+        email = current_email(request)
+        if not email:
+            return PlainTextResponse("Unauthorized.", status_code=401)
+        form = await request.form()
+        csrf_val = form.get("csrf")
+        if not isinstance(csrf_val, str) or not csrf_ok(email, csrf_val):
+            return PlainTextResponse("Bad CSRF token.", status_code=403)
+        name = form.get("name")
+        if not isinstance(name, str) or not storage.is_safe_image_name(name):
+            return PlainTextResponse("Unknown image.", status_code=400)
+        # Only the owner (or an admin) may delete an image: look up who
+        # generated it from its sidecar before touching the file.
+        root = storage.images_root()
+        owner = next(
+            (str(m.get("email") or "") for m in metadata.load_all_meta(root)
+             if m.get("name") == name),
+            None,
+        )
+        if not is_admin(email) and (owner is None or owner != email):
+            return PlainTextResponse("Forbidden.", status_code=403)
+        storage.delete_image(name, root)
+        return RedirectResponse("/ui", status_code=303)
 
     @mcp.custom_route("/ui/prefs", methods=["POST"])
     async def ui_prefs(request: Request) -> Response:

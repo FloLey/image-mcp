@@ -43,3 +43,18 @@ def load_image(name: str, root: Path) -> bytes | None:
     if not path.is_file():
         return None
     return path.read_bytes()
+
+
+def delete_image(name: str, root: Path) -> bool:
+    """Delete a generated image and its metadata sidecar. Returns ``True`` if
+    the PNG existed and was removed, ``False`` for unsafe/unknown names. The
+    ``.json`` sidecar is best-effort: a missing one is not an error."""
+    if not is_safe_image_name(name):
+        return False
+    png = root / name
+    if not png.is_file():
+        return False
+    png.unlink()
+    sidecar = root / f"{name.rsplit('.', 1)[0]}.json"
+    sidecar.unlink(missing_ok=True)
+    return True

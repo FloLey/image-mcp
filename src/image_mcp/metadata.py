@@ -67,6 +67,20 @@ def load_all_meta(root: Path) -> list[dict]:
     return metas
 
 
+def load_meta(root: Path, name: str) -> dict | None:
+    """The sidecar record for a single image ``name`` (``{uuid}.png``), or
+    ``None`` when there is no readable sidecar for it."""
+    stem = name.rsplit(".", 1)[0]
+    if not _SAFE_STEM.match(stem):
+        return None
+    path = root / f"{stem}.json"
+    try:
+        meta = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return meta if isinstance(meta, dict) and meta.get("name") else None
+
+
 def summarize_by_user(metas: list[dict]) -> list[tuple[str, dict]]:
     """Group records per email: ``[(email, {count, cost, images})]``, biggest
     spender first; each user's images stay newest first."""
