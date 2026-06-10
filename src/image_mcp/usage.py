@@ -45,12 +45,12 @@ PARAMETERS
   night", "combine these two characters"). Up to a few images.
 
 RESULT
-Each call returns a small inline preview plus two URLs: a share page with a
-download button ({base}/v/<uuid>.png, best link to give the user, works on
-mobile) and the direct full-size PNG ({base}/i/<uuid>.png). Always share the
-links: some clients do not render the inline preview. The filename can be
-passed back as a reference_images entry. Do not try to fetch or embed the
-image yourself (e.g. in an artifact); just give the links.
+Each call returns a small inline preview plus the link of the share page
+({base}/v/<uuid>.png): the full-size image with a download button, works on
+mobile. Always give the user that link: some clients do not render the
+inline preview. The filename can be passed back as a reference_images entry.
+Do not try to fetch or embed the image yourself (e.g. in an artifact); just
+give the link.
 
 DASHBOARD
 {base}/ui (Google login, invitation-only): per-user galleries and estimated

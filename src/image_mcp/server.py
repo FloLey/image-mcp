@@ -241,12 +241,13 @@ def generate_image(
     )
     preview = generate.make_preview(image_data)
     base = os.environ.get("IMG_PUBLIC_URL", DEFAULT_PUBLIC_URL).rstrip("/")
+    # One link only: the share page (image + download button). Giving the raw
+    # PNG URL as well made models hand the user the button-less one.
     return [
         MCPImage(data=preview, format="jpeg"),
         f"Image ready (model: {alias}, size: {size}). "
-        f"View and download it here: {base}/v/{name} "
-        f"(direct PNG: {base}/i/{name}; filename {name}, "
-        "reusable as a reference_images entry). Always give the user the link.",
+        f"Give the user this link to view and download it: {base}/v/{name} "
+        f"(filename {name}, reusable as a reference_images entry).",
     ]
 
 
