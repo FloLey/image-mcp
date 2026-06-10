@@ -1,0 +1,24 @@
+[project]
+name = "image-mcp"
+version = "0.1.0"
+description = "MCP server for image generation with Gemini (nano banana), shared with friends via Google OAuth"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.0,<3",
+    "google-genai>=1.0",
+    "pillow>=10",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
