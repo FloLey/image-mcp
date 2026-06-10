@@ -175,11 +175,13 @@ def generate_image(
     (nano banana). Returns an inline preview plus the URL of the full-size PNG;
     always give the user that URL.
 
-    ``model``: the model chosen in the caller's web dashboard always takes
-    precedence; this parameter only applies for callers without a dashboard
-    default. In that case: ``"flash"`` (Nano Banana 2, fast and cheap) for
-    drafts and simple scenes, ``"pro"`` (Nano Banana Pro) for final renders,
-    legible text in the image, or complex compositions.
+    ``model``: ONLY set this when the user explicitly asked for a specific
+    model or quality in their message (e.g. "use pro", "en qualite max",
+    "avec flash"): ``"flash"`` is Nano Banana 2 (fast and cheap), ``"pro"``
+    is Nano Banana Pro (best quality, legible text, complex compositions).
+    Otherwise ALWAYS leave it unset: the user's dashboard default applies
+    (flash unless they changed it). Never pick a model on your own
+    initiative.
 
     ``image_size`` is the output resolution: ``"1K"`` (default), ``"2K"``, or
     ``"4K"``. Price per image rises with size (flash $0.067/$0.101/$0.151,
@@ -241,19 +243,13 @@ def generate_image(
     )
     preview = generate.make_preview(image_data)
     base = os.environ.get("IMG_PUBLIC_URL", DEFAULT_PUBLIC_URL).rstrip("/")
-    overridden = (
-        f" Note: the user's dashboard default ({alias}) takes precedence over "
-        f"the requested model ({requested}); it can be changed at {base}/ui."
-        if requested and pref and requested != pref
-        else ""
-    )
     # One link only: the share page (image + download button). Giving the raw
     # PNG URL as well made models hand the user the button-less one.
     return [
         MCPImage(data=preview, format="jpeg"),
         f"Image ready (model: {alias}, size: {size}). "
         f"Give the user this link to view and download it: {base}/v/{name} "
-        f"(filename {name}, reusable as a reference_images entry).{overridden}",
+        f"(filename {name}, reusable as a reference_images entry).",
     ]
 
 

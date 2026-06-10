@@ -13,14 +13,13 @@ from image_mcp.models import (
 )
 
 
-def test_choose_alias_dashboard_pref_always_wins():
-    assert choose_alias(requested="flash", pref="pro") == "pro"
-    assert choose_alias(requested="pro", pref="flash") == "flash"
+def test_choose_alias_explicit_request_wins():
+    assert choose_alias(requested="flash", pref="pro") == "flash"
+    assert choose_alias(requested="pro", pref="flash") == "pro"
+
+
+def test_choose_alias_falls_back_to_pref_then_default():
     assert choose_alias(requested=None, pref="pro") == "pro"
-
-
-def test_choose_alias_without_pref():
-    assert choose_alias(requested="pro", pref=None) == "pro"
     assert choose_alias(requested=None, pref=None) == DEFAULT_ALIAS
 
 

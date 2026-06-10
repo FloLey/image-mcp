@@ -57,9 +57,10 @@ def resolve_size(value: str | None) -> str:
 
 
 def choose_alias(requested: str | None, pref: str | None) -> str:
-    """Which model to use: the user's dashboard preference always wins; an
-    explicit request only applies for users without one; else the default."""
-    return pref or requested or DEFAULT_ALIAS
+    """Which model to use: an explicit request wins (the tool contract says
+    the caller only passes one when the human explicitly asked for it), then
+    the dashboard preference, then the default."""
+    return requested or pref or DEFAULT_ALIAS
 
 
 def resolve_alias(value: str | None) -> str | None:
