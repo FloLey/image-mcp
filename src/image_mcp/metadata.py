@@ -90,7 +90,9 @@ def summarize_usage(metas: list[dict], *, now: datetime | None = None) -> dict[s
     ).isoformat(timespec="seconds")
     usage: dict[str, dict] = {}
     for meta in metas:
-        email = str(meta.get("email") or "unknown")
+        # Normalized like the spend ledger keys, so the admin page can merge
+        # the two without duplicate rows.
+        email = str(meta.get("email") or "").strip().lower() or "unknown"
         entry = usage.setdefault(
             email, {"count": 0, "recent": 0, "models": {}, "last": ""}
         )

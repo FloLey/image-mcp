@@ -519,7 +519,7 @@ def register_ui(
         user_rows = ""
         for e in row_emails:
             entry = usage.get(e)
-            last = str(entry["last"])[:19].replace("T", " ") if entry else "-"
+            last = str(entry["last"])[:19].replace("T", " ") if entry and entry["last"] else "-"
             user_rows += (
                 f"<tr><td>{html.escape(e)}</td>"
                 f"<td>{entry['count'] if entry else 0}</td>"

@@ -69,8 +69,9 @@ def test_summarize_usage_counts_models_and_recency():
     usage = summarize_usage(
         [
             _meta("a@x.com", old, alias="flash"),
-            _meta("a@x.com", fresh, alias="pro"),
+            _meta(" A@X.com ", fresh, alias="pro"),  # normalized into a@x.com
             _meta("b@x.com", fresh, alias="flash"),
+            _meta("  ", fresh),  # blank email: grouped under "unknown"
         ],
         now=now,
     )
@@ -80,6 +81,7 @@ def test_summarize_usage_counts_models_and_recency():
     assert a["models"] == {"flash": 1, "pro": 1}
     assert a["last"] == fresh
     assert usage["b@x.com"]["count"] == 1
+    assert usage["unknown"]["count"] == 1
 
 
 def test_daily_activity_groups_by_day_and_drops_old(tmp_path):
