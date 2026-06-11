@@ -4,7 +4,9 @@ Shows, per user, the number of generated images, the estimated cost, and a
 gallery of the images themselves. Gated by a browser Google login (the same
 OAuth client as the MCP endpoint) restricted to the allow-listed emails:
 admins (IMG_ADMIN_EMAILS) see every user, anyone else only sees their own
-images and cost. In local dev (IMG_AUTH_DISABLED=1) the login is bypassed.
+images and cost. Admins additionally get /ui/admin, a usage page with
+per-user totals, model breakdowns, and recent activity.
+In local dev (IMG_AUTH_DISABLED=1) the login is bypassed.
 
 Same session mechanics as memory-wiki's console: a signed (stdlib HMAC),
 HttpOnly/Secure cookie scoped to /ui. The only write is the per-user default
@@ -256,11 +258,12 @@ def _figure(m: dict, csrf: str) -> str:
     )
 
 
-def _page(title: str, body: str, *, email: str | None = None) -> HTMLResponse:
+def _page(title: str, body: str, *, email: str | None = None, admin: bool = False) -> HTMLResponse:
     nav = ""
     who = ""
     if email:
-        nav = '<nav><a href="/ui">Dashboard</a><a href="/ui/logout">Logout</a></nav>'
+        admin_link = '<a href="/ui/admin">Admin</a>' if admin else ""
+        nav = f'<nav><a href="/ui">Dashboard</a>{admin_link}<a href="/ui/logout">Logout</a></nav>'
         who = f'<span class="who">{html.escape(email)}</span>'
     doc = (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
@@ -481,7 +484,83 @@ def register_ui(
         if not per_user:
             galleries = "<div class='empty'>No images generated yet.</div>"
 
-        return _page("Dashboard", summary + prefs_card + galleries, email=email)
+        return _page("Dashboard", summary + prefs_card + galleries, email=email, admin=admin)
+
+    # ---- admin usage page ----
+    @mcp.custom_route("/ui/admin", methods=["GET"])
+    async def ui_admin(request: Request) -> Response:
+        email = current_email(request)
+        if not email:
+            return RedirectResponse("/ui/login")
+        if not is_admin(email):
+            return PlainTextResponse("Forbidden.", status_code=403)
+        root = storage.images_root()
+        metas = metadata.load_all_meta(root)
+        usage = metadata.summarize_usage(metas)
+        spend_totals = spend.totals(root)
+
+        # Same authority split as the dashboard: spend comes from the
+        # cumulative ledger (deleting an image never lowers it), everything
+        # else — counts, models, recency — from the live sidecars.
+        row_emails = sorted(
+            set(spend_totals) | set(usage),
+            key=lambda e: spend_totals.get(e, 0.0),
+            reverse=True,
+        )
+
+        def models_label(entry: dict | None) -> str:
+            if not entry or not entry["models"]:
+                return "-"
+            return ", ".join(
+                f"{alias} ×{n}"
+                for alias, n in sorted(entry["models"].items(), key=lambda kv: -kv[1])
+            )
+
+        user_rows = ""
+        for e in row_emails:
+            entry = usage.get(e)
+            last = str(entry["last"])[:19].replace("T", " ") if entry and entry["last"] else "-"
+            user_rows += (
+                f"<tr><td>{html.escape(e)}</td>"
+                f"<td>{entry['count'] if entry else 0}</td>"
+                f"<td>${spend_totals.get(e, 0.0):.3f}</td>"
+                f"<td>{html.escape(models_label(entry))}</td>"
+                f"<td>{entry['recent'] if entry else 0}</td>"
+                f"<td>{html.escape(last)}</td></tr>"
+            )
+        total_count = sum(s["count"] for s in usage.values())
+        total_cost = sum(spend_totals.values())
+        users_card = (
+            "<section class='card'><h2>Usage per user</h2>"
+            "<table><thead><tr><th>User</th><th>Images</th><th>Estimated cost</th>"
+            "<th>Models</th><th>Last 30 days</th><th>Last generation</th></tr></thead>"
+            f"<tbody>{user_rows}"
+            f"<tr><th>Total · {len(row_emails)} user(s)</th><th>{total_count}</th>"
+            f"<th>${total_cost:.3f}</th><th></th><th></th><th></th></tr>"
+            "</tbody></table>"
+            "<p class='muted'>Estimated cost is the cumulative spend ledger and "
+            "never decreases; image counts and model breakdowns reflect the "
+            "currently stored images, so deletions lower them.</p>"
+            "</section>"
+        )
+
+        activity_rows = "".join(
+            f"<tr><td>{html.escape(day)}</td><td>{s['count']}</td>"
+            f"<td>${s['cost']:.3f}</td></tr>"
+            for day, s in metadata.daily_activity(metas)
+        )
+        activity_card = (
+            "<section class='card'><h2>Activity · last 14 days</h2>"
+            + (
+                "<table><thead><tr><th>Day</th><th>Images</th><th>Estimated cost</th>"
+                f"</tr></thead><tbody>{activity_rows}</tbody></table>"
+                if activity_rows
+                else "<div class='empty'>No images generated in the last 14 days.</div>"
+            )
+            + "</section>"
+        )
+
+        return _page("Admin · Usage", users_card + activity_card, email=email, admin=True)
 
     @mcp.custom_route("/ui/delete", methods=["POST"])
     async def ui_delete(request: Request) -> Response:

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 _SAFE_STEM = re.compile(r"^[0-9a-f]{32}$")
@@ -79,6 +79,54 @@ def load_meta(root: Path, name: str) -> dict | None:
     except (OSError, json.JSONDecodeError):
         return None
     return meta if isinstance(meta, dict) and meta.get("name") else None
+
+
+def summarize_usage(metas: list[dict], *, now: datetime | None = None) -> dict[str, dict]:
+    """Per-user usage rollup for the admin page, computed from the live
+    sidecars: image count, per-model counts, images generated in the last 30
+    days, and the most recent generation timestamp. Keyed by email."""
+    cutoff = (
+        (now or datetime.now(timezone.utc)) - timedelta(days=30)
+    ).isoformat(timespec="seconds")
+    usage: dict[str, dict] = {}
+    for meta in metas:
+        # Normalized like the spend ledger keys, so the admin page can merge
+        # the two without duplicate rows.
+        email = str(meta.get("email") or "").strip().lower() or "unknown"
+        entry = usage.setdefault(
+            email, {"count": 0, "recent": 0, "models": {}, "last": ""}
+        )
+        entry["count"] += 1
+        alias = str(meta.get("model_alias") or meta.get("model") or "unknown")
+        entry["models"][alias] = entry["models"].get(alias, 0) + 1
+        created = str(meta.get("created") or "")
+        if created > entry["last"]:
+            entry["last"] = created
+        if created >= cutoff:
+            entry["recent"] += 1
+    return usage
+
+
+def daily_activity(
+    metas: list[dict], *, days: int = 14, now: datetime | None = None
+) -> list[tuple[str, dict]]:
+    """Generations and estimated cost per day over the last ``days`` days,
+    newest first: ``[(YYYY-MM-DD, {count, cost})]``. Quiet days are omitted."""
+    cutoff = (
+        (now or datetime.now(timezone.utc)) - timedelta(days=days)
+    ).date().isoformat()
+    per_day: dict[str, dict] = {}
+    for meta in metas:
+        day = str(meta.get("created") or "")[:10]
+        if len(day) != 10 or day < cutoff:
+            continue
+        entry = per_day.setdefault(day, {"count": 0, "cost": 0.0})
+        entry["count"] += 1
+        try:
+            entry["cost"] += float(meta.get("cost", 0))
+        except (TypeError, ValueError):
+            pass
+    return sorted(per_day.items(), reverse=True)
 
 
 def summarize_by_user(metas: list[dict]) -> list[tuple[str, dict]]:
