@@ -1,4 +1,13 @@
-from image_mcp.metadata import load_all_meta, load_meta, save_meta, summarize_by_user
+from datetime import datetime, timedelta, timezone
+
+from image_mcp.metadata import (
+    daily_activity,
+    load_all_meta,
+    load_meta,
+    save_meta,
+    summarize_by_user,
+    summarize_usage,
+)
 from image_mcp.storage import save_image
 
 
@@ -44,6 +53,53 @@ def test_load_meta_by_name(tmp_path):
     # name is what we accept here.
     assert load_meta(tmp_path, "0" * 32 + ".png") is None
     assert load_meta(tmp_path, "not-a-name") is None
+
+
+def _meta(email, created, *, alias="flash", cost=0.039):
+    return {
+        "name": "0" * 32 + ".png", "email": email, "created": created,
+        "model_alias": alias, "cost": cost,
+    }
+
+
+def test_summarize_usage_counts_models_and_recency():
+    now = datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
+    old = (now - timedelta(days=90)).isoformat(timespec="seconds")
+    fresh = (now - timedelta(days=2)).isoformat(timespec="seconds")
+    usage = summarize_usage(
+        [
+            _meta("a@x.com", old, alias="flash"),
+            _meta("a@x.com", fresh, alias="pro"),
+            _meta("b@x.com", fresh, alias="flash"),
+        ],
+        now=now,
+    )
+    a = usage["a@x.com"]
+    assert a["count"] == 2
+    assert a["recent"] == 1  # only the fresh one is inside 30 days
+    assert a["models"] == {"flash": 1, "pro": 1}
+    assert a["last"] == fresh
+    assert usage["b@x.com"]["count"] == 1
+
+
+def test_daily_activity_groups_by_day_and_drops_old(tmp_path):
+    now = datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
+    today = now.isoformat(timespec="seconds")
+    yesterday = (now - timedelta(days=1)).isoformat(timespec="seconds")
+    ancient = (now - timedelta(days=60)).isoformat(timespec="seconds")
+    days = daily_activity(
+        [
+            _meta("a@x.com", today, cost=0.04),
+            _meta("b@x.com", today, cost=0.06),
+            _meta("a@x.com", yesterday, cost=0.04),
+            _meta("a@x.com", ancient, cost=0.04),
+            _meta("a@x.com", ""),  # missing timestamp: skipped
+        ],
+        now=now,
+    )
+    assert [d for d, _ in days] == ["2026-06-11", "2026-06-10"]
+    assert days[0][1]["count"] == 2
+    assert abs(days[0][1]["cost"] - 0.10) < 1e-9
 
 
 def test_summarize_groups_and_sorts_by_cost(tmp_path):
